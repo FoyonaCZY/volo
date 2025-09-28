@@ -440,7 +440,7 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
         self.inner.codegen_struct_impl(def_id, stream, s)
     }
 
-    fn codegen_service_impl(&self, def_id: DefId, stream: &mut String, _s: &rir::Service) {
+    fn codegen_service_impl(&self, def_id: DefId, stream: &mut String, s: &rir::Service) {
         let service_name = self.cx().rust_name(def_id);
         let server_name = format!("{service_name}Server");
         let generic_client_name = format!("{service_name}GenericClient");
@@ -498,6 +498,8 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
                 // only placeholder, should never be used
                 "std::convert::Infallible".into()
             };
+            let leading_comments = m.leading_comments.clone();
+            let trailing_comments = m.trailing_comments.clone();
 
             let convert_exceptions = m.exceptions.iter().map(|p| {
                 self.cx().expect_item(p.did)
@@ -521,7 +523,9 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
                 resp_str = "::std::result::Result::Ok(::volo_thrift::MaybeException::Ok(resp))";
             }
             client_methods.push(format! {
-                r#"pub async fn {name}(&self {req_fields}) -> ::std::result::Result<{resp_type_str}, ::volo_thrift::ClientError> {{
+                r#"
+                {leading_comments}
+                pub async fn {name}(&self {req_fields}) -> ::std::result::Result<{resp_type_str}, ::volo_thrift::ClientError> {{
                     let req = {req_send_name}::{enum_variant}({anonymous_args_send_name} {{
                         {req_field_names}
                     }});
@@ -539,11 +543,12 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
                         }}
                     }});
                     resp
-                }}"#
+                }} {trailing_comments}"#
             });
 
             oneshot_client_methods.push(format! {
-                r#"pub async fn {name}(self {req_fields}) -> ::std::result::Result<{resp_type_str}, ::volo_thrift::ClientError> {{
+                r#"{leading_comments}
+                pub async fn {name}(self {req_fields}) -> ::std::result::Result<{resp_type_str}, ::volo_thrift::ClientError> {{
                     let req = {req_send_name}::{enum_variant}({anonymous_args_send_name} {{
                         {req_field_names}
                     }});
@@ -561,7 +566,7 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
                         }}
                     }});
                     resp
-                }}"#
+                }} {trailing_comments}"#
             });
         });
 
@@ -603,20 +608,25 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
                     })
                     .join("");
 
+                let leading_comments = m.leading_comments.clone();
+                let trailing_comments = m.trailing_comments.clone();
+
                 if has_exception {
                     format! {
-                        r#"match self.inner.{name}({args}).await {{
+                        r#"{leading_comments}
+                        match self.inner.{name}({args}).await {{
                         ::std::result::Result::Ok(::volo_thrift::MaybeException::Ok(resp)) => {method_result_path}::Ok(resp),
                         {convert_exceptions}
                         ::std::result::Result::Err(err) => return ::std::result::Result::Err(err),
-                    }}"#
+                        }} {trailing_comments}"#
                     }
                 } else {
                     format! {
-                        r#"match self.inner.{name}({args}).await {{
+                        r#"{leading_comments}
+                        match self.inner.{name}({args}).await {{
                         ::std::result::Result::Ok(resp) => {method_result_path}::Ok(resp),
                         ::std::result::Result::Err(err) => return ::std::result::Result::Err(err),
-                    }}"#
+                        }} {trailing_comments}"#
                     }
                 }
             })
@@ -633,10 +643,14 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
 
         let mut mod_rs_stream = String::new();
 
+        let leading_comments = s.leading_comments.clone();
+        let trailing_comments = s.trailing_comments.clone();
+
         let server_string = format! {
-            r#"pub struct {server_name}<S> {{
+            r#"{leading_comments}
+            pub struct {server_name}<S> {{
                 inner: S, // handler
-            }}
+            }} {trailing_comments}
 
             impl<S> {server_name}<S> where S: {service_name} + ::core::marker::Send + ::core::marker::Sync + 'static {{
                 pub fn new(inner: S) -> ::volo_thrift::server::Server<Self, ::volo::layer::Identity, {req_recv_name}, ::volo_thrift::codec::default::DefaultMakeCodec<::volo_thrift::codec::default::ttheader::MakeTTHeaderCodec<::volo_thrift::codec::default::framed::MakeFramedCodec<::volo_thrift::codec::default::thrift::MakeThriftCodec>>>, ::volo_thrift::tracing::DefaultProvider> {{
