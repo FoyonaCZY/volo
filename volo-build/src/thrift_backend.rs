@@ -643,14 +643,11 @@ impl pilota_build::CodegenBackend for VoloThriftBackend {
 
         let mut mod_rs_stream = String::new();
 
-        let leading_comments = s.leading_comments.clone();
-        let trailing_comments = s.trailing_comments.clone();
-
         let server_string = format! {
-            r#"{leading_comments}
+            r#"
             pub struct {server_name}<S> {{
                 inner: S, // handler
-            }} {trailing_comments}
+            }}
 
             impl<S> {server_name}<S> where S: {service_name} + ::core::marker::Send + ::core::marker::Sync + 'static {{
                 pub fn new(inner: S) -> ::volo_thrift::server::Server<Self, ::volo::layer::Identity, {req_recv_name}, ::volo_thrift::codec::default::DefaultMakeCodec<::volo_thrift::codec::default::ttheader::MakeTTHeaderCodec<::volo_thrift::codec::default::framed::MakeFramedCodec<::volo_thrift::codec::default::thrift::MakeThriftCodec>>>, ::volo_thrift::tracing::DefaultProvider> {{
